@@ -75,13 +75,27 @@ app.use('/graphql', graphqlHttp({
                     title: args.eventInput.title,
                 description: args.eventInput.description,
                 price:  +args.eventInput.price,
-                date: new Date(args.eventInput.date)
+                date: new Date(args.eventInput.date),
+                creator: '5e2a2fe25d59057ae10760ef'
             });
+            let createdEvent;
             return event
                 .save()
                 .then(result => {
+                    createdEvent =  {...result._doc, _id: result._doc._id.toString() };
+                    return User.findById('5e2a2fe25d59057ae10760ef')
                     console.log(result);
-                    return {...result._doc};
+                    return {...result._doc, _id: result._doc._id.toString() };
+                })  .then(user => {
+                        if(!user) {
+                            throw new Error('User not found.');
+                        }
+                        user.createdEvents.push(event);
+                        return user.save();
+                })
+                .then(result => {
+                    console.log(result);
+                    return createdEvent;
                 })
                 .catch(err => {
                     console.log(err)
@@ -93,16 +107,22 @@ app.use('/graphql', graphqlHttp({
             return eventName;
         },
         createUser: args => {
-            return bcrypt.hash(args.userInput.password, 12)
+          return User.findOne({email: args.userInput.email})
+                .then(user => {
+                    if(user) {
+                        throw new Error('User exists already');
+                    }
+                    return bcrypt.hash(args.userInput.password, 12)
+                })
                 .then(hashedPassword => {
                     const user = new User({
                         email: args.userInput.email,
-                        password: args.userInput.password
+                        password: hashedPassword
                     });
                     return user.save();
                 })
                 .then(result => {
-                    return {...result._doc, _id: result .id };
+                    return {...result._doc, password: null, _id: result .id };
                 })
                 .catch(err => {
                 throw err;
